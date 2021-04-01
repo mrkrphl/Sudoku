@@ -51,6 +51,7 @@ public class SudokuSolver extends Application {
 
     boolean creatingBoard = false; //is true when creating a custom board
     boolean playing = false;//is true when player is currently solving board
+    boolean solved = false;
 
     int keyRow = 9;
     int keyCol = 0;
@@ -90,12 +91,7 @@ public class SudokuSolver extends Application {
         Solve.setOnAction(e -> {
             Play.setDisable(true);
             Solve.setDisable(true);
-            if(solveBoard(board)){
-                System.out.println("Solved!");
-                drawAnswer();
-            }else{
-                System.out.println("No Solution!");
-            };
+            solveBoard(board);
         });
 
         HBox buttonGroup = new HBox(Play, Custom, Generate, OK, Solve);
@@ -232,6 +228,7 @@ public class SudokuSolver extends Application {
     }
 
     void createCustomBoard(Node node){
+        solved = false;
         if(node.isDisabled()) node.setDisable(false);
         creatingBoard = true;
         //disable buttons
@@ -325,16 +322,7 @@ public class SudokuSolver extends Application {
                 OK.setDisable(false);
                 return;
             }
-            if(Integer.parseInt(in.getText()) == 0){
-                Alert alert = new Alert(AlertType.INFORMATION);
-                alert.setTitle("Invalid Input");
-                alert.setHeaderText("Input can't be 0!");
-                alert.showAndWait();
-                in.clear();
-                OK.setDisable(false);
-                return;
-            }
-            if(!isSafe(Integer.parseInt(in.getText()), board, row, col)){
+            if(!isSafe(Integer.parseInt(in.getText()), board, row, col) && Integer.parseInt(in.getText()) != 0){
                 Alert alert = new Alert(AlertType.INFORMATION);
                 alert.setTitle("Invalid Input");
                 alert.setHeaderText(in.getText() + " is doubled!");
@@ -403,6 +391,7 @@ public class SudokuSolver extends Application {
     }
 
     void generateBoard(ActionEvent e){
+        solved = false;
         drawBoard();
         board = new int[size][size];
         for(int i = 0; i < size; i++){
@@ -446,11 +435,11 @@ public class SudokuSolver extends Application {
     }
 
     private boolean isSafe(int value, int[][] board, int row, int column) {
-        //check row
+        //check column
         for(int i = 0; i < size; i++){
             if(board[i][column] == value) return false;
         }
-        //check column
+        //check row
         for(int j = 0; j < size; j++){
             if(board[row][j] == value) return false;
         }
@@ -467,8 +456,8 @@ public class SudokuSolver extends Application {
         return true;
     }
 
-    boolean solveBoard(int[][] board){
-        System.out.println(".");
+    void solveBoard(int[][] board){
+        
         int row = -1;
         int col = -1;
         int i = 0, j = 0;
@@ -482,19 +471,33 @@ public class SudokuSolver extends Application {
             if(row != -1 && col != -1) break;
         }
 
-        if(i == size && j == size) return true;
+        if(i == size && j == size){
+            solved = true;
+        }
+        if(solved){
+            drawBoard();
+            drawContents();
+            drawAnswer();
+            Alert alert = new Alert(AlertType.CONFIRMATION);
+            alert.setTitle("Game Solved!");
+            alert.setContentText("There might be more solutions! Wanna check?");
+            Optional<ButtonType> result = alert.showAndWait();
+            System.out.println(result.get());
+            if(result.get() == ButtonType.OK){
+                solved = false;
+            }
+            return;
+        }
         else{
             for(int value = 1; value < size+1; value++){
                 if(isSafe(value, board, row, col)){
                     board[row][col] = value;
-                    if(!solveBoard(board)){
-                        board[row][col] = 0;
-                    }else{
-                        return true;
-                    }
+                    solveBoard(board);
+                    if(!solved) board[row][col] = 0;
+                    else if(solved) System.out.println("Congrats");
                 }
             }
-            return false;
+            return;
         }
     }
 
