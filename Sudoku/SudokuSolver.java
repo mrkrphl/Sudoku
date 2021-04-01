@@ -1,15 +1,21 @@
-import java.util.Scanner;
+import java.util.Optional;
 
 import javafx.application.Application;
+import javafx.event.ActionEvent;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Alert.AlertType;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
 import javafx.scene.layout.BorderPane;
@@ -20,16 +26,17 @@ import javafx.scene.paint.Color;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
+//* This program runs a Sudoku Game that allows you to generate random boards or to create your own custom game to solve.//
 public class SudokuSolver extends Application {
     
-    int cellSize = 50;
-    int size = 9;
-    int board[][];
+    int cellSize = 50; //size of each cell that contains the number
+    int size = 9;//size of matrix
+    
 
     int width = 600;
     int height = 500;
     
-    int horOffSet = (width - (size * cellSize))/2;
+    int horOffSet = (width - (size * cellSize))/2; //to center the board on the canvas
     int verOffSet = (height - (size * cellSize))/2;
 
     Button Solve;
@@ -38,55 +45,54 @@ public class SudokuSolver extends Application {
     Button Custom;
     Button Generate;
 
-    int unsolved[][];
+    int board[][]; //current board
+    int unsolved[][];//board to solve
+    int answers[][];//answers to board
 
-    boolean creatingBoard = false;
+    boolean creatingBoard = false; //is true when creating a custom board
+    boolean playing = false;//is true when player is currently solving board
+
+    int keyRow = 9;
+    int keyCol = 0;
+
+    GraphicsContext g;
+    
     @Override
     public void start(Stage stage) throws Exception {
         Canvas canvas = new Canvas(width, height);
-        GraphicsContext g = canvas.getGraphicsContext2D();
+        g = canvas.getGraphicsContext2D();
 
-        drawBoard(g);
+        drawBoard();
         
         Play = new Button("Play");
-        Play.setDisable(true);
         Custom = new Button("Custom Board");
         OK = new Button("OK");
-        OK.setDisable(true);
         Generate = new Button("Generate Board");
         Solve = new Button("Solve");
 
+        //disable when no board is currently set
+        Play.setDisable(true);
+        OK.setDisable(true);
+        Solve.setDisable(true);
+
+        //padding
         Play.setPadding(new Insets(10));
         Custom.setPadding(new Insets(10));
         OK.setPadding(new Insets(10));
         Generate.setPadding(new Insets(10));
         Solve.setPadding(new Insets(10));
-        Solve.setDisable(true);
+        
+        //on Action
+        Play.setOnAction(a -> play(a));
+        OK.setOnAction(e -> okPressed(e));
+        Generate.setOnAction(e -> generateBoard(e));
 
-        Custom.setOnAction(e -> createCustomBoard(g));
-        OK.setOnAction(e -> {
-            creatingBoard = false;
-            Play.setDisable(false);
-            Custom.setDisable(false);
-            Generate.setDisable(false);
-            OK.setDisable(true); //disable ok
-            Solve.setDisable(false);
-            unsolved = new int[size][size];
-            for(int i = 0; i < size; i++){
-                for(int j = 0; j < size; j++){
-                    unsolved[i][j] = board[i][j];
-                }
-            }
-            drawBoard(g);
-            drawContents(board, g);
-        });
-        Generate.setOnAction(e -> generateBoard(g));
         Solve.setOnAction(e -> {
             Play.setDisable(true);
             Solve.setDisable(true);
             if(solveBoard(board)){
                 System.out.println("Solved!");
-                drawAnswer(board, g);
+                drawAnswer();
             }else{
                 System.out.println("No Solution!");
             };
@@ -97,6 +103,8 @@ public class SudokuSolver extends Application {
         buttonGroup.setPadding(new Insets(20));
         buttonGroup.setAlignment(Pos.CENTER);
 
+        Custom.setOnAction(e -> createCustomBoard(buttonGroup));
+
         BorderPane root = new BorderPane();
         root.setCenter(canvas);
         root.setBottom(buttonGroup);
@@ -104,12 +112,127 @@ public class SudokuSolver extends Application {
         buttonGroup.setBackground(new Background(new BackgroundFill(Color.BLUEVIOLET, CornerRadii.EMPTY, Insets.EMPTY)));
 
         Scene scene = new Scene(root);
+
+        g.getCanvas().setOnMouseClicked(e -> mouseClicked(e));
+        g.getCanvas().setOnMouseMoved(e -> mouseMoved(e, buttonGroup)); 
+
+        scene.addEventFilter(KeyEvent.KEY_PRESSED, (key) -> {
+            keyPressed(key, buttonGroup);
+        });
+
         stage.setScene(scene);
         stage.setTitle("Sudoku");
         stage.show();
     }
 
-    void createCustomBoard(GraphicsContext g){
+    private void okPressed(ActionEvent e) {
+        if(playing){
+            if(!checkBoard()){
+                Alert alert = new Alert(AlertType.CONFIRMATION);
+                alert.setTitle("Game not Finished!");
+                alert.setContentText("You haven't solved the board! Are you sure you want to quit?");
+                Optional<ButtonType> result = alert.showAndWait();
+                System.out.println(result.get());
+                if(result.get() == ButtonType.OK){
+                    playing = false;
+                }else{
+                    keyRow--;
+                    g.setStroke(Color.RED);
+                    g.setLineWidth(3);
+                    g.strokeRect(keyCol*cellSize + horOffSet, keyRow*cellSize + verOffSet, cellSize, cellSize);
+                    return;
+                }
+
+            }else{
+                Alert congrats = new Alert(AlertType.INFORMATION);
+                congrats.setTitle("Congratulations!");
+                congrats.setHeaderText("You Completed the Puzzle!");
+                congrats.setContentText("Good Game!");
+                congrats.showAndWait();
+            }
+        }
+        playing = false;
+        creatingBoard = false;
+        Play.setDisable(false);
+        Custom.setDisable(false);
+        Generate.setDisable(false);
+        OK.setDisable(true); //disable ok
+        Solve.setDisable(false);
+        unsolved = new int[size][size];
+        for(int i = 0; i < size; i++){
+            for(int j = 0; j < size; j++){
+                unsolved[i][j] = board[i][j];
+            }
+        }
+        drawBoard();
+        drawContents();
+    }
+
+    private boolean checkBoard() {
+        for(int i = 0; i < size; i++){
+            for(int j = 0; j < size; j++){
+                if(board[i][j] == 0) return false;
+            }
+        }
+        return true;
+    }
+
+    private void play(ActionEvent a) {
+        playing = true;
+        OK.setDisable(false);
+        Custom.setDisable(true);
+        Play.setDisable(true);
+        Solve.setDisable(true);
+        Generate.setDisable(true);
+        answers = new int[size][size];
+
+    }
+
+    private void keyPressed(KeyEvent e, Node node) {
+        if(!creatingBoard && !playing) return;
+        
+        if(keyRow == size) node.setDisable(false);
+        else node.setDisable(true);
+        KeyCode code = e.getCode();
+        if(code == KeyCode.ENTER && keyRow < size){
+            OK.setDisable(true);
+            getInput(keyRow, keyCol);
+        }
+        
+        if(code == KeyCode.UP && keyRow > 0) keyRow-=1;
+        else if(code == KeyCode.UP && keyRow == 0) keyRow = 8;
+        else if(code == KeyCode.DOWN && keyRow < size) keyRow+=1;
+        else if(code == KeyCode.DOWN && keyRow == size) keyRow = 0;
+        else if(code == KeyCode.LEFT && keyCol > 0) keyCol-=1;
+        else if(code == KeyCode.LEFT && keyCol == 0) keyCol = 8;
+        else if(code == KeyCode.RIGHT && keyCol < size-1) keyCol+=1;
+        else if(code == KeyCode.RIGHT && keyCol == size-1) keyCol=0;
+        System.out.println(keyRow);
+
+        if(keyRow == size){
+            drawBoard();
+            drawContents();
+            if(playing){
+                drawAnswers();
+            }
+            node.setDisable(false);
+        }
+        else node.setDisable(true);
+
+        if(keyRow < size){
+            drawBoard();
+            drawContents();
+            if(playing){
+                drawAnswers();
+            }
+            g.setStroke(Color.RED);
+            g.setLineWidth(3);
+            g.strokeRect(keyCol*cellSize + horOffSet, keyRow*cellSize + verOffSet, cellSize, cellSize);
+        }
+    }
+
+    void createCustomBoard(Node node){
+        if(node.isDisabled()) node.setDisable(false);
         creatingBoard = true;
         //disable buttons
         Play.setDisable(true);
@@ -117,21 +240,18 @@ public class SudokuSolver extends Application {
         Generate.setDisable(true);
         OK.setDisable(false); //except ok
         Solve.setDisable(true);
-        drawBoard(g);
+        drawBoard();
         board = new int[size][size];
+    }
 
+    private void mouseClicked(MouseEvent e) {
+        if(!creatingBoard && !playing) return;
         int canvasW = (int) g.getCanvas().getWidth();
         int canvasH = (int) g.getCanvas().getHeight();
-
         int boardLeft = horOffSet;
         int boardRight = canvasW - horOffSet;
         int boardTop = verOffSet;
         int boardBottom = canvasH - verOffSet;
-        boolean selectedCell = false;
-        
-
-        g.getCanvas().setOnMouseClicked(e -> {
-            if(!creatingBoard) return;
             if(e.getX() <= horOffSet || e.getY() <= verOffSet){
                 System.out.println("Out of canvas");
             }else if(e.getX() >= g.getCanvas().getWidth() - horOffSet || e.getY() >= g.getCanvas().getHeight() - verOffSet){
@@ -149,7 +269,7 @@ public class SudokuSolver extends Application {
                                 g.setStroke(Color.RED);
                                 g.setLineWidth(3);
                                 g.strokeRect(col*cellSize + horOffSet, row*cellSize + verOffSet, cellSize, cellSize);
-                                getInput(row, col, g);
+                                getInput(row, col);
                                 
                             }
                         }
@@ -158,10 +278,16 @@ public class SudokuSolver extends Application {
                     col++;
                 }
             }
-        });
-
-        g.getCanvas().setOnMouseMoved(e -> {
-            if(!creatingBoard) return;
+    }
+    private void mouseMoved(MouseEvent e, Node node) {
+        if(node.isDisabled())node.setDisable(false);
+        if(!creatingBoard && !playing) return;
+        int canvasW = (int) g.getCanvas().getWidth();
+        int canvasH = (int) g.getCanvas().getHeight();
+        int boardLeft = horOffSet;
+        int boardRight = canvasW - horOffSet;
+        int boardTop = verOffSet;
+        int boardBottom = canvasH - verOffSet;
             if(boardLeft < e.getX() && e.getX() < boardRight && boardTop < e.getY() && e.getY() < boardBottom){
                 int row = 0;
                 int col = 0;
@@ -169,26 +295,24 @@ public class SudokuSolver extends Application {
                     row = 0;
                     for(int j = 0; j < size*cellSize; j+=cellSize){
                         if(e.getX() > i + horOffSet && e.getX() < i+cellSize+horOffSet && e.getY() > j + verOffSet && e.getY() < j+cellSize+verOffSet){
+                            keyRow = row;
+                            keyCol = col;
+                            drawBoard();
+                            drawContents();
+                            if(playing) drawAnswers();
                             g.setStroke(Color.RED);
                             g.setLineWidth(3);
                             g.strokeRect(col*cellSize + horOffSet, row*cellSize + verOffSet, cellSize, cellSize);
                         }else{
-                            g.setStroke(Color.WHITE);
-                            g.setLineWidth(3);
-                            g.strokeRect(col*cellSize + horOffSet, row*cellSize + verOffSet, cellSize, cellSize);
-                            g.setStroke(Color.BLACK);
-                            g.setLineWidth(1);
-                            g.strokeRect(col*cellSize + horOffSet, row*cellSize + verOffSet, cellSize, cellSize);
+                            
                         }
                         row++;
                     }
                     col++;
                 }
             }
-        });
     }
-
-    private void getInput(int row, int col, GraphicsContext g) {
+    private void getInput(int row, int col) {
         Stage dialog = new Stage();
         dialog.initModality(Modality.APPLICATION_MODAL);
         TextField in = new TextField();
@@ -196,10 +320,49 @@ public class SudokuSolver extends Application {
         enter.setDefaultButton(true);
 
         enter.setOnAction(e -> {
-            board[row][col] = Integer.parseInt(in.getText());
+            if(in.getText().isEmpty()){
+                dialog.close();
+                OK.setDisable(false);
+                return;
+            }
+            if(Integer.parseInt(in.getText()) == 0){
+                Alert alert = new Alert(AlertType.INFORMATION);
+                alert.setTitle("Invalid Input");
+                alert.setHeaderText("Input can't be 0!");
+                alert.showAndWait();
+                in.clear();
+                OK.setDisable(false);
+                return;
+            }
+            if(!isSafe(Integer.parseInt(in.getText()), board, row, col)){
+                Alert alert = new Alert(AlertType.INFORMATION);
+                alert.setTitle("Invalid Input");
+                alert.setHeaderText(in.getText() + " is doubled!");
+                alert.showAndWait();
+                in.clear();
+                OK.setDisable(false);
+                dialog.close();
+                return;
+            }
+            if(playing){
+                try{
+                    answers[row][col] = Integer.parseInt(in.getText());
+                }catch(Exception error){
+                    error.printStackTrace();
+                }
+            }
+            try{
+                board[row][col] = Integer.parseInt(in.getText());
+            }catch(Exception error){
+                error.printStackTrace();
+            }
             System.out.println("Input is " + in.getText() + " for board [" +row+ "][" +col+ "].");
-            drawBoard(g);
-            drawContents(board, g);
+            drawBoard();
+            drawContents();
+            if(playing){
+                drawAnswers();
+            }
+            OK.setDisable(false);
             dialog.close();
         });
         VBox root = new VBox(in, enter);
@@ -210,8 +373,18 @@ public class SudokuSolver extends Application {
         dialog.show();
         
     }
+    private void drawAnswers() {
+        for(int i = 0; i < size; i++){
+            for(int j = 0; j < size; j++){
+                if(answers[i][j] != 0){
+                    g.setStroke(Color.RED);
+                    g.strokeText(Integer.toString(answers[i][j]), 25+ horOffSet + (j*cellSize), 25+ verOffSet + (i*cellSize));
+                }
+            }
+        }
+    }
 
-    private void drawBoard(GraphicsContext g) {
+    private void drawBoard() {
         for(int i = 0; i < size*cellSize; i+=cellSize){
             for(int j = 0; j < size*cellSize; j+=cellSize){
                 g.setFill(Color.WHITE);
@@ -229,8 +402,8 @@ public class SudokuSolver extends Application {
         }
     }
 
-    void generateBoard(GraphicsContext g){
-        drawBoard(g);
+    void generateBoard(ActionEvent e){
+        drawBoard();
         board = new int[size][size];
         for(int i = 0; i < size; i++){
             for(int j = 0; j < size; j++){
@@ -249,7 +422,7 @@ public class SudokuSolver extends Application {
             }
         }
 
-        drawContents(board, g);
+        drawContents();
 
         unsolved = new int[size][size];
         for(int i = 0; i < size; i++){
@@ -261,7 +434,7 @@ public class SudokuSolver extends Application {
         Play.setDisable(false);
 
     }
-    private void drawContents(int[][] board2, GraphicsContext g) {
+    private void drawContents() {
         for(int row = 0; row < size; row++){
             for(int col = 0; col < size; col++){
                 if(board[row][col] != 0){
@@ -325,7 +498,7 @@ public class SudokuSolver extends Application {
         }
     }
 
-    void drawAnswer(int[][] board, GraphicsContext g){
+    void drawAnswer(){
         for(int i = 0; i < size; i++){
             for(int j = 0; j < size; j++){
                 if(unsolved[i][j] == 0){
