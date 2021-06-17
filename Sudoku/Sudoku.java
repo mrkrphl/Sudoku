@@ -27,7 +27,7 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 //* This program runs a Sudoku Game that allows you to generate random boards or to create your own custom game to solve.//
-public class SudokuSolver extends Application {
+public class Sudoku extends Application {
     
     int cellSize = 50; //size of each cell that contains the number
     int size = 9;//size of matrix
