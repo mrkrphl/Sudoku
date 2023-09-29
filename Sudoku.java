@@ -334,6 +334,15 @@ public class Sudoku extends Application {
                 OK.setDisable(false);
                 return;
             }
+            if(Integer.parseInt(in.getText()) > 9){
+                Alert alert = new Alert(AlertType.INFORMATION);
+                alert.setTitle("Invalid Input");
+                alert.setHeaderText("Input can't be greater than 9");
+                alert.showAndWait();
+                in.clear();
+                OK.setDisable(false);
+                return;
+            }
             if(!isSafe(Integer.parseInt(in.getText()), board, row, col)){
                 Alert alert = new Alert(AlertType.INFORMATION);
                 alert.setTitle("Invalid Input");

@@ -6,17 +6,11 @@
     "configurations": [
         {
             "type": "java",
-            "name": "Launch Sudoku",
+            "name": "Sudoku",
             "request": "launch",
             "mainClass": "Sudoku",
-            "vmArgs": "--module-path D:\\JavaFX\\javafx-sdk-15.0.1\\lib --add-modules javafx.controls",
-            "projectName": "Sudoku_48b2a54c"
-        },
-        {
-            "type": "java",
-            "name": "Launch Current File",
-            "request": "launch",
-            "mainClass": "${file}"
-        },
+            "vmArgs": "--module-path C:\\Users\\mrkrp\\JavaFX\\javafx-sdk-21\\lib --add-modules javafx.controls",
+            "projectName": "Sudoku_c4073bb8"
+        }
     ]
 }
